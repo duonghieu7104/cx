@@ -1,0 +1,99 @@
+# Generic multi-repo preset. Paths are examples; edit them to match the workspace.
+# `cx init` rewrites base lines marked cx-init.
+version: 1
+workspace:
+  mode: multi-repo
+  root: .
+  repos:
+    - id: api
+      alias: [api]
+      path: services/api
+      base: main # cx-init:base
+      check: "true" # cx-init:check
+      services: [api]
+    - id: web
+      alias: [web]
+      path: apps/web
+      base: main # cx-init:base
+      check: "true" # cx-init:check
+      services: [web]
+worktree:
+  root: .worktrees
+  pattern: "{task}-{repo}"
+  branch_pattern: "{type}/{task}"
+tasks:
+  root: docs/tasks
+  state_file: README.md
+  events_file: events.ndjson
+phases:
+  - id: intake
+    enabled: true
+    actor: cli
+  - id: proposal
+    enabled: true
+    actor: agent
+    skill: superpowers:brainstorming
+    prompt: builtin:proposal
+  - id: plan
+    enabled: true
+    actor: agent
+    skill: superpowers:writing-plans
+    prompt: builtin:plan
+  - id: plan_review
+    enabled: true
+    actor: human
+    gate: plan
+  - id: execute
+    enabled: true
+    actor: agent
+    subagent: cx-implementer
+    skill: superpowers:test-driven-development
+    prompt: builtin:execute
+  - id: checks
+    enabled: true
+    actor: cli
+    command: check
+  - id: review
+    enabled: true
+    actor: agent
+    subagent: cx-reviewer
+    prompt: builtin:review
+    max_rounds: 2
+    retry_phase: execute
+  - id: gate
+    enabled: true
+    actor: human
+    gate: commit
+stack:
+  mode: none
+queue:
+  mode: serial
+  parallelism: 1
+  cooldown: 0s
+gates:
+  require: [plan, commit, push, pr]
+  bind_to_head: true
+guards:
+  protect_primary_checkout: true
+  blocked_commands:
+    - pattern: '(^|[;&|]|\n)\s*cx\s+approve\b'
+      reason: cx approve is a human gate. Run it in your terminal.
+    - pattern: '(^|[;&|]|\n)\s*git\s+push\b'
+      reason: Push through `cx pr` after approval.
+    - pattern: '(^|[;&|]|\n)\s*git\s+commit\b'
+      reason: Commit through `cx commit` after approval.
+  protected_files:
+    - "**/.env"
+    - "**/.env.*"
+    - "**/*.pem"
+  mcp_deny:
+    - "*payment*"
+    - "*budget*"
+  secret_assignments:
+    - 'NPM_TOKEN\s*='
+    - '(_PASSWORD|_SECRET|_TOKEN|_API_KEY)\s*='
+notifications:
+  on_gate: stdout
+claude:
+  scope: project
+  config_dir: .claude

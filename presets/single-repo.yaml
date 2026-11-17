@@ -1,0 +1,110 @@
+# Minimal one-repository preset. `cx init` rewrites lines marked cx-init
+# when it can see the git branch or a test script.
+version: 1
+workspace:
+  mode: single-repo
+  root: .
+  repos:
+    - id: app
+      path: .
+      base: main # cx-init:base
+      check: "true" # cx-init:check
+worktree:
+  root: .worktrees
+  pattern: "{task}-{repo}"
+  branch_pattern: "{type}/{task}"
+tasks:
+  root: docs/tasks
+  state_file: README.md
+  events_file: events.ndjson
+  folders:
+    proposal: 1-proposal
+    plan: 2-plan
+    execute: 4-execute
+    checks: 4-execute
+    review: 4-execute
+    test_local: 5-test
+phases:
+  - id: intake
+    enabled: true
+    actor: cli
+  - id: proposal
+    enabled: true
+    actor: agent
+    skill: superpowers:brainstorming
+    prompt: builtin:proposal
+  - id: plan
+    enabled: true
+    actor: agent
+    skill: superpowers:writing-plans
+    prompt: builtin:plan
+  - id: plan_review
+    enabled: true
+    actor: human
+    gate: plan
+  - id: execute
+    enabled: true
+    actor: agent
+    subagent: cx-implementer
+    skill: superpowers:test-driven-development
+    prompt: builtin:execute
+  - id: checks
+    enabled: true
+    actor: cli
+    command: check
+  - id: review
+    enabled: true
+    actor: agent
+    subagent: cx-reviewer
+    skill: superpowers:requesting-code-review
+    prompt: builtin:review
+    max_rounds: 2
+    retry_phase: execute
+  - id: test_local
+    enabled: false
+    actor: agent
+    subagent: cx-qc
+    prompt: builtin:test-local
+    command: test-local
+  - id: gate
+    enabled: true
+    actor: human
+    gate: commit
+stack:
+  mode: none
+queue:
+  mode: serial
+  parallelism: 1
+  cooldown: 0s
+  dir: .cx/queue
+gates:
+  require: [plan, commit, push, pr]
+  bind_to_head: true
+guards:
+  protect_primary_checkout: true
+  blocked_commands:
+    - pattern: '(^|[;&|]|\n)\s*cx\s+approve\b'
+      reason: cx approve is a human gate. Run it in your terminal.
+    - pattern: '(^|[;&|]|\n)\s*git\s+push\b'
+      reason: Push through `cx pr` after `cx approve push`.
+    - pattern: '(^|[;&|]|\n)\s*gh\s+pr\s+create\b'
+      reason: Open pull requests through `cx pr` after approval.
+    - pattern: '(^|[;&|]|\n)\s*git\s+commit\b'
+      reason: Commit through `cx commit` after `cx approve commit`.
+  protected_files:
+    - "**/.env"
+    - "**/.env.*"
+    - "**/*.pem"
+    - "**/*secret*"
+  mcp_deny:
+    - "*payment*"
+    - "*budget*"
+  secret_assignments:
+    - 'NPM_TOKEN\s*='
+    - '(_PASSWORD|_SECRET|_TOKEN|_API_KEY)\s*='
+  warn_patterns: []
+notifications:
+  on_gate: stdout
+claude:
+  scope: project
+  config_dir: .claude

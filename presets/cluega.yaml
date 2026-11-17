@@ -1,0 +1,238 @@
+# Cluega workspace preset.
+# Layout: many org repos checked out next to each other, task notes in plans/,
+# worktrees in .worktrees/, one shared compose stack driven by a wrapper.
+# Tag variable names that were not confirmed are marked REPLACE_ME_*.
+# Check commands that were not confirmed are empty; cx check will refuse to guess.
+# This file contains no passwords, tokens, or account names.
+version: 1
+workspace:
+  mode: multi-repo
+  root: .
+  repos:
+    - id: FRONTEND_CLUEGA_HOME
+      alias: [FE]
+      path: FRONTEND_CLUEGA_HOME
+      base: dev
+      services: [fe]
+      check: npm run typecheck && npm run lint && npm test
+      build: "FE_APP_DIR={worktree}/apps/app ./.local-stack/fe.sh build"
+    - id: BACKEND_CLUEGA_CDP
+      alias: [cdp]
+      path: BACKEND_CLUEGA_CDP
+      base: dev
+      services: [cdp]
+      check: make test && make lint
+      build: "docker build -f .local-stack/cdp-backend/Dockerfile -t {image}:{tag} {worktree}"
+    - id: CLUEGA_MCP_GATEWAY
+      alias: [gateway]
+      path: CLUEGA_MCP_GATEWAY
+      base: dev
+      services: [mcp-gateway]
+      check: make test && make check
+      build: "docker build -f .local-stack/mcp-gateway/Dockerfile -t {image}:{tag} {worktree}"
+    - id: CLUEGA_BOT
+      alias: [bot, rakazo]
+      path: CLUEGA_BOT
+      base: dev
+      services: [rakazo-api, rakazo-worker]
+      check: pnpm test && pnpm lint
+      build: "docker build -f {worktree}/infra/compose/Dockerfile -t {image}:{tag} {worktree}"
+    - id: CLUEGA_AI_CDP
+      alias: [ai-cdp]
+      path: CLUEGA_AI_CDP
+      base: dev
+      services: [ai-cdp]
+      check: make verify-chat-routing && make verify-chat-lanes
+    - id: BACKEND_MID_PLATFORM_CLUEGA
+      alias: [core]
+      path: BACKEND_MID_PLATFORM_CLUEGA
+      checkout: .worktrees/local-stack-BACKEND_MID_PLATFORM_CLUEGA
+      base: dev
+      services: [core]
+      check: ""
+    - id: EXTENSION_CDP_CLUEGA
+      alias: [extension]
+      path: EXTENSION_CDP_CLUEGA
+      base: main
+      check: ""
+    - id: CLUEGA_DESKTOP_RUNTIME
+      alias: [desktop]
+      path: CLUEGA_DESKTOP_RUNTIME
+      base: main
+      check: ""
+worktree:
+  root: .worktrees
+  pattern: "{task}-{repo}"
+  branch_pattern: "{type}/{desc}"
+tasks:
+  root: plans
+  state_file: README.md
+  events_file: 4-execute/exec-log/cx-events.ndjson
+  folders:
+    proposal: 1-proposal
+    plan: 2-plan
+    ui: 3-ui
+    execute: 4-execute
+    checks: 4-execute
+    review: 4-execute
+    test_local: 5-test
+phases:
+  - id: intake
+    enabled: true
+    actor: cli
+  - id: proposal
+    enabled: true
+    actor: agent
+    skill: superpowers:brainstorming
+    prompt: builtin:proposal
+  - id: plan
+    enabled: true
+    actor: agent
+    skill: superpowers:writing-plans
+    prompt: builtin:plan
+  - id: plan_review
+    enabled: true
+    actor: human
+    gate: plan
+  - id: execute
+    enabled: true
+    actor: agent
+    subagent: cx-implementer
+    skill: superpowers:test-driven-development
+    prompt: builtin:execute
+  - id: checks
+    enabled: true
+    actor: cli
+    command: check
+  - id: review
+    enabled: true
+    actor: agent
+    subagent: cx-reviewer
+    skill: superpowers:requesting-code-review
+    prompt: builtin:review
+    max_rounds: 2
+    retry_phase: execute
+  - id: test_local
+    enabled: true
+    actor: agent
+    subagent: cx-qc
+    skill: superpowers:verification-before-completion
+    prompt: builtin:test-local
+    command: test-local
+  - id: gate
+    enabled: true
+    actor: human
+    gate: commit
+stack:
+  mode: shared
+  project: cluega-local
+  wrapper: .local-stack/batchlaunch-dc.sh
+  state_dir: .local-stack/.cx
+  compose_files:
+    - .local-stack/docker-compose.yml
+    - .local-stack/docker-compose.merged.yml
+    - .local-stack/dev-override.d1109.yml
+    - .local-stack/batchlaunch-override.yml
+  lease_ttl: 45m
+  health_timeout: 120s
+  services:
+    - name: cdp
+      tag_var: BATCH_CDP_TAG
+      image: local-stack/cdp-backend
+      repo: BACKEND_CLUEGA_CDP
+      build: "docker build -f .local-stack/cdp-backend/Dockerfile -t {image}:{tag} {worktree}"
+    - name: rakazo-api
+      tag_var: BATCH_RAKAZO_TAG
+      image: local-stack/rakazo
+      repo: CLUEGA_BOT
+    - name: rakazo-worker
+      tag_var: BATCH_RAKAZO_TAG
+      image: local-stack/rakazo
+      repo: CLUEGA_BOT
+    - name: mcp-gateway
+      tag_var: BATCH_GATEWAY_TAG
+      image: local-stack/mcp-gateway
+      repo: CLUEGA_MCP_GATEWAY
+      build: "docker build -f .local-stack/mcp-gateway/Dockerfile -t {image}:{tag} {worktree}"
+    - name: fe
+      tag_var: BATCH_FE_APP
+      image: local-stack/fe
+      kind: mount
+      repo: FRONTEND_CLUEGA_HOME
+      build: "FE_APP_DIR={worktree}/apps/app ./.local-stack/fe.sh build"
+    # Unconfirmed wrapper variables. Replace the tag_var before swapping these.
+    - name: core
+      tag_var: REPLACE_ME_CORE_TAG
+      image: local-stack/core
+      repo: BACKEND_MID_PLATFORM_CLUEGA
+    - name: ai-cdp
+      tag_var: REPLACE_ME_AI_CDP_TAG
+      image: local-stack/ai-cdp
+      repo: CLUEGA_AI_CDP
+  restore:
+    require_no_deps: true
+    export_all_baseline_tags: true
+    verify_before_release: true
+    on_mismatch: keep-lease
+queue:
+  mode: serial
+  parallelism: 1
+  cooldown: 60s
+  dir: .local-stack/.cx/queue
+gates:
+  require: [plan, commit, push, pr]
+  bind_to_head: true
+guards:
+  protect_primary_checkout: true
+  blocked_commands:
+    - pattern: '(^|[;&|]|\n)\s*cx\s+approve\b'
+      reason: cx approve is a human gate. Run it in your terminal.
+    - pattern: '(^|[;&|]|\n)\s*git\s+push\b'
+      reason: Push through `cx pr` after approval.
+    - pattern: '(^|[;&|]|\n)\s*gh\s+pr\s+create\b'
+      reason: Open pull requests through `cx pr` after approval.
+    - pattern: '(^|[;&|]|\n)\s*git\s+commit\b'
+      reason: Commit through `cx commit` after approval.
+    - pattern: '\bdocker\s+compose\b'
+      reason: Drive the shared stack through cx stack, which calls the wrapper with --no-deps.
+    - pattern: 'batchlaunch-dc\.sh'
+      reason: Call the stack wrapper only through cx so the lease token and baseline tags are set.
+    - pattern: '(^|[;&|]|\n)\s*\./(up|down|fe)\.sh\b'
+      reason: Use cx stack instead of the raw stack scripts.
+    - pattern: '\bnext\s+dev\b'
+      reason: Do not start a dev server from an agent. Build through cx build.
+    - pattern: '\bdocker\s+system\s+prune\b'
+      reason: Refusing docker system prune.
+    - pattern: '\bdocker\s+build\b'
+      reason: Build images through cx build so they enter the serial queue.
+    - pattern: '(^|[;&|]|\n)\s*(cat|grep|rg|source|printenv)\b[^\n]*\.env\b'
+      reason: Refusing to read an env file.
+    - pattern: 'NPM_TOKEN\s*='
+      reason: Refusing to assign an npm token in a command.
+  protected_files:
+    - "**/.env"
+    - "**/.env.*"
+    - "env/*.env"
+    - "**/*secret*"
+    - "**/*.pem"
+  mcp_deny:
+    - "*budget*"
+    - "*payment*"
+    - "*bid*"
+    - "*campaign*"
+    - "create_*"
+  secret_assignments:
+    - 'NPM_TOKEN\s*='
+    - '(_PASSWORD|_SECRET|_TOKEN|_API_KEY)\s*='
+  warn_patterns:
+    - 'docs/superpowers/'
+    - 'staging'
+notifications:
+  on_gate: stdout
+claude:
+  scope: project
+  config_dir: .claude
+doctor:
+  env_files:
+    - .local-stack/.env
+    - .env
