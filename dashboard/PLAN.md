@@ -1,6 +1,6 @@
 # Dashboard plan (milestone M5)
 
-The dashboard is not part of this release. `cx dash` prints a pointer here and does not open a port.
+Milestone M5 is implemented. `cx dash` serves `dashboard/public/index.html` from `src/dash.ts`. The constraints below still hold.
 
 ## Shape
 

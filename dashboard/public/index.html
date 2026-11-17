@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cx</title>
+<style>
+  :root {
+    --bg: #10140f;
+    --paper: #182018;
+    --paper-2: #202a20;
+    --line: #314033;
+    --text: #f3f6ef;
+    --muted: #9aab96;
+    --live: #8fd48a;
+    --recent: #e3b341;
+    --stale: #e07a5f;
+    --gate: #f0c36a;
+    --accent: #d6f26a;
+    --go: #7dcea0;
+    --danger: #e07a5f;
+    --shadow: 0 18px 50px rgba(0, 0, 0, .28);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 500px at 10% -10%, rgba(214, 242, 106, .08), transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font: 15px/1.45 "Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  }
+  button, a { font: inherit; color: inherit; }
+  button { background: none; border: 0; cursor: pointer; }
+  code { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+  .top {
+    display: flex; align-items: center; gap: 22px;
+    padding: 16px 28px; border-bottom: 1px solid var(--line);
+    position: sticky; top: 0; background: rgba(16, 20, 15, .92); backdrop-filter: blur(10px); z-index: 5;
+  }
+  .mark { font-family: Georgia, "Iowan Old Style", serif; font-size: 28px; letter-spacing: -.04em; }
+  .mark span { color: var(--accent); }
+  .project { color: var(--muted); }
+  nav { display: flex; gap: 6px; margin-left: 12px; }
+  nav button, .pill {
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; color: var(--muted);
+  }
+  nav button.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+  .pill { margin-left: auto; color: var(--accent); border-color: #4d5c32; }
+  main { padding: 22px 28px 48px; }
+  h1, h2 { font-family: Georgia, "Iowan Old Style", serif; font-weight: 500; letter-spacing: -.03em; }
+  h1 { font-size: 34px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 18px; }
+  .board { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; align-items: start; }
+  .col { min-width: 0; }
+  .col h3 { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .col.gate h3 { color: var(--gate); }
+  .card {
+    background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 12px 12px 10px;
+    margin-bottom: 10px; text-align: left; width: 100%; box-shadow: var(--shadow);
+  }
+  .card.here { border-color: var(--accent); }
+  .card strong { display: block; font-size: 15px; }
+  .card em { display: block; color: var(--muted); font-style: normal; font-size: 12px; margin-top: 2px; }
+  .lanes { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .chip { font-size: 11px; border-radius: 999px; padding: 2px 7px; background: var(--paper-2); color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .live { background: var(--live); } .recent { background: var(--recent); } .stale { background: var(--stale); }
+  .back { color: var(--muted); margin-bottom: 10px; }
+  .stepper { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0 18px; }
+  .step { border: 1px solid var(--line); border-radius: 12px; padding: 7px 10px; color: var(--muted); font-size: 13px; }
+  .step.on { background: var(--accent); color: #17200c; border-color: var(--accent); }
+  .step.done { color: var(--go); border-color: #315c45; }
+  .step.gate { border-color: #6d5a2c; }
+  .grid { display: grid; grid-template-columns: 1.4fr .8fr; gap: 16px; }
+  .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .timeline { list-style: none; margin: 0; padding: 0; }
+  .timeline li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .timeline time { color: var(--muted); font-size: 12px; }
+  pre { white-space: pre-wrap; background: #0d120d; border-radius: 12px; padding: 10px; color: #d5e0cc; overflow: auto; max-height: 280px; }
+  .shots { display: flex; gap: 10px; flex-wrap: wrap; }
+  .shots button { padding: 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+  .shots img { width: 180px; height: 112px; object-fit: cover; display: block; }
+  .gate-ok { color: var(--go); } .gate-no { color: var(--gate); }
+  .banner { background: rgba(224, 122, 95, .15); border: 1px solid var(--danger); color: #ffd0c6; border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+  .quiet { background: rgba(143, 212, 138, .1); border: 1px solid #315c45; color: var(--go); border-radius: 14px; padding: 12px 14px; margin-bottom: 14px; }
+  .empty { color: var(--muted); padding: 28px; border: 1px dashed var(--line); border-radius: 16px; }
+  .lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.72); display: grid; place-items: center; z-index: 9; }
+  .lightbox figure { margin: 0; max-width: min(1100px, 92vw); }
+  .lightbox img { width: 100%; border-radius: 16px; }
+  .lightbox figcaption { color: var(--muted); margin-top: 8px; }
+  .queue-run { border-left: 3px solid var(--accent); padding-left: 12px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="mark">c<span>x</span></div>
+  <div class="project" id="project"></div>
+  <nav>
+    <button id="nav-board" class="on" type="button">Board</button>
+    <button id="nav-stack" type="button">Stack</button>
+    <button id="nav-queue" type="button">Queue</button>
+  </nav>
+  <div class="pill">read-only · 127.0.0.1</div>
+</header>
+<main id="app"></main>
+<script>
+const app = document.querySelector('#app');
+let data = null;
+let lightbox = null;
+
+document.querySelector('#nav-board').onclick = () => { location.hash = '#/'; };
+document.querySelector('#nav-stack').onclick = () => { location.hash = '#/stack'; };
+document.querySelector('#nav-queue').onclick = () => { location.hash = '#/queue'; };
+window.addEventListener('hashchange', render);
+
+async function pull() {
+  const res = await fetch('/api/snapshot', { cache: 'no-store' });
+  if (!res.ok) return;
+  data = await res.json();
+  document.querySelector('#project').textContent = data.project || '';
+  render();
+}
+
+function route() {
+  const hash = location.hash || '#/';
+  const task = hash.match(/^#\/task\/([a-z0-9-]+)/);
+  if (task) return { name: 'task', id: task[1] };
+  if (hash.startsWith('#/stack')) return { name: 'stack' };
+  if (hash.startsWith('#/queue')) return { name: 'queue' };
+  return { name: 'board' };
+}
+
+function render() {
+  if (!data) { app.innerHTML = '<p class="sub">Loading…</p>'; return; }
+  const page = route();
+  for (const id of ['board', 'stack', 'queue']) {
+    document.querySelector('#nav-' + id).classList.toggle('on', page.name === id);
+  }
+  if (page.name === 'task') app.innerHTML = taskPage(data.tasks.find((item) => item.task === page.id));
+  else if (page.name === 'stack') app.innerHTML = stackPage(data.stack);
+  else if (page.name === 'queue') app.innerHTML = queuePage(data.queue);
+  else app.innerHTML = boardPage(data);
+  wire();
+}
+
+function boardPage(model) {
+  const phases = model.phases.length ? model.phases : [{ id: 'intake', actor: 'cli', gate: null }];
+  const cols = phases.map((phase) => {
+    const cards = model.tasks.filter((task) => task.phase === phase.id).map(card).join('');
+    const gate = phase.actor === 'human' || phase.gate ? ' gate' : '';
+    return `<section class="col${gate}"><h3>${esc(phase.id.replaceAll('_', ' '))}</h3>${cards || '<div class="empty">empty</div>'}</section>`;
+  }).join('');
+  const other = model.tasks.filter((task) => !phases.some((phase) => phase.id === task.phase));
+  const extra = other.length ? `<section class="col"><h3>other</h3>${other.map(card).join('')}</section>` : '';
+  const empty = model.tasks.length ? '' : '<p class="empty">No tasks yet. <code>cx task new &lt;slug&gt; --title "…"</code></p>';
+  return `<h1>Board</h1><p class="sub">${model.tasks.length} task${model.tasks.length === 1 ? '' : 's'} · human gates stay in the terminal</p>${empty}<div class="board">${cols}${extra}</div>`;
+}
+
+function card(task) {
+  const lanes = (task.lanes || []).map((lane) => `<span class="chip">${esc(lane.repo)} · ${esc(lane.branch)}</span>`).join('');
+  return `<button class="card here" data-task="${esc(task.task)}" type="button"><span class="dot ${esc(task.liveness)}"></span><strong>${esc(task.title)}</strong><em>${esc(task.task)} · ${esc(task.phase)}</em><div class="lanes">${lanes}</div></button>`;
+}
+
+function taskPage(task) {
+  if (!task) return '<p class="empty">Task not on the board.</p>';
+  const phases = (data.phases || []);
+  const index = phases.findIndex((phase) => phase.id === task.phase);
+  const steps = phases.map((phase, i) => {
+    const cls = ['step', i < index ? 'done' : '', i === index ? 'on' : '', phase.actor === 'human' || phase.gate ? 'gate' : ''].filter(Boolean).join(' ');
+    return `<div class="${cls}">${esc(phase.id.replaceAll('_', ' '))}</div>`;
+  }).join('');
+  const lanes = (task.lanes || []).map((lane) => `<tr><td>${esc(lane.repo)}</td><td><code>${esc(lane.branch)}</code><div class="sub">${esc(lane.base)}</div></td><td><code>${esc(lane.worktree)}</code></td><td>${esc(lane.status)}${lane.dirty ? ' · dirty' : ''}${lane.head ? ' · ' + esc(lane.head) : ''}</td></tr>`).join('');
+  const gates = (task.gates || []).map((gate) => `<tr><td>${esc(gate.what)}</td><td class="${gate.ok ? 'gate-ok' : 'gate-no'}">${gate.ok ? 'approved' : 'waiting'}</td><td>${esc(gate.by || '—')} ${esc(gate.ts || '')}<div class="sub">${esc(gate.reason || '')}</div></td></tr>`).join('');
+  const events = (task.events || []).slice().reverse().map((event) => `<li><time>${esc(event.ts || '')}</time> <strong>${esc(event.event || '')}</strong> <span class="sub">${esc(JSON.stringify(event.data || {}))}</span></li>`).join('');
+  const checks = (task.checks || []).map((check) => `<h3>${esc(check.repo)}</h3><pre>${esc(check.tail || '')}</pre>`).join('') || '<p class="sub">No check log yet.</p>';
+  const shots = (task.proofs || []).map((shot) => `<button type="button" data-proof="${esc(shot.url)}" data-cap="${esc(shot.file)}"><img alt="${esc(shot.file)}" src="${esc(shot.url)}"></button>`).join('');
+  return `<button class="back" type="button" id="back">← Board</button>
+    <h1>${esc(task.title)}</h1>
+    <p class="sub"><span class="dot ${esc(task.liveness)}"></span>${esc(task.phase)} · ${esc(task.summary || '')}</p>
+    <div class="stepper">${steps}</div>
+    <div class="grid">
+      <section class="panel"><h2>Lanes</h2><table><thead><tr><th>Repo</th><th>Branch</th><th>Worktree</th><th>Status</th></tr></thead><tbody>${lanes || '<tr><td colspan="4">No lanes</td></tr>'}</tbody></table>
+        <h2>Checks</h2>${checks}
+        <h2>Proof</h2><div class="shots">${shots || '<p class="sub">No proof images in the test folder.</p>'}</div>
+      </section>
+      <section class="panel"><h2>Gates</h2><table><tbody>${gates || '<tr><td>none configured</td></tr>'}</tbody></table>
+        <h2>Review</h2><p>${task.review && task.review.verdict ? esc(task.review.verdict) + ' · round ' + esc(String(task.review.round)) : 'no verdict yet'}</p>
+        <pre>${esc(task.excerpts.review || task.excerpts.plan || '')}</pre>
+        <h2>Timeline</h2><ul class="timeline">${events || '<li>No events yet.</li>'}</ul>
+      </section>
+    </div>`;
+}
+
+function stackPage(stack) {
+  if (!stack || stack.mode === 'none') return '<h1>Stack</h1><p class="empty">stack.mode is none. Nothing is leased.</p>';
+  const lease = stack.lease;
+  const banner = (stack.drift || []).length ? `<div class="banner">Drift: ${esc((stack.drift || []).join('; '))}</div>` : '<div class="quiet">No drift against the baseline.</div>';
+  const who = lease ? `${esc(lease.task)} since ${esc(lease.started)} · ttl ${esc(String(lease.ttl_s))}s${lease.orphan ? ' · orphan' : ''}` : 'nobody';
+  const rows = (stack.services || []).map((service) => `<tr><td>${esc(service.name)}</td><td><code>${esc(service.baseline_tag || '—')}</code></td><td><code>${esc(service.current_tag || '—')}</code></td><td>${esc(service.health || '—')}</td><td>${service.drifted ? 'drift' : 'match'}</td></tr>`).join('');
+  return `<h1>Stack</h1><p class="sub">${esc(stack.mode)} ${esc(stack.project || '')}</p>${banner}
+    <section class="panel"><h2>Lease</h2><p>${who}</p>${stack.docker_error ? `<p class="sub">${esc(stack.docker_error)}</p>` : ''}
+    <table><thead><tr><th>Service</th><th>Baseline tag</th><th>Current tag</th><th>Health</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="5">No services in the snapshot.</td></tr>'}</tbody></table></section>`;
+}
+
+function queuePage(queue) {
+  const running = (queue.running || []).filter((item) => item.task);
+  const runningKey = new Set(running.map((item) => (item.task || '') + ':' + (item.kind || '')));
+  const waiting = (queue.waiting || []).filter((item) => !runningKey.has((item.task || '') + ':' + (item.kind || '')));
+  const run = running.length ? running.map((item) => `<div class="queue-run"><strong>${esc(item.task)}</strong> <span class="sub">${esc(item.kind || '')} · pid ${esc(String(item.pid || ''))}</span></div>`).join('') : '<p class="sub">Idle.</p>';
+  const wait = waiting.length ? waiting.map((item) => `<li><code>${esc(item.ticket)}</code> ${esc(item.task || '')} ${esc(item.kind || '')}</li>`).join('') : '<li>No one waiting.</li>';
+  const cool = Math.max(0, Math.round((queue.cooldown_remaining_ms || 0) / 1000));
+  return `<h1>Build queue</h1><p class="sub">Serial cooldown ${esc(String(queue.cooldown_ms || 0))} ms · ${cool}s left</p>
+    <section class="panel"><h2>Running</h2>${run}<h2>Waiting</h2><ul class="timeline">${wait}</ul></section>`;
+}
+
+function wire() {
+  document.querySelectorAll('[data-task]').forEach((node) => {
+    node.onclick = () => { location.hash = '#/task/' + node.getAttribute('data-task'); };
+  });
+  const back = document.querySelector('#back');
+  if (back) back.onclick = () => { location.hash = '#/'; };
+  document.querySelectorAll('[data-proof]').forEach((node) => {
+    node.onclick = () => openProof(node.getAttribute('data-proof'), node.getAttribute('data-cap'));
+  });
+  if (lightbox) openProof(lightbox.url, lightbox.caption);
+}
+
+function openProof(url, caption) {
+  lightbox = { url, caption };
+  const node = document.createElement('div');
+  node.className = 'lightbox';
+  node.innerHTML = `<figure><img alt="${esc(caption || 'proof')}" src="${esc(url)}"><figcaption>${esc(caption || '')}</figcaption></figure>`;
+  node.onclick = () => { lightbox = null; node.remove(); };
+  document.body.appendChild(node);
+}
+
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+pull();
+setInterval(pull, 2000);
+</script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { approvalState, approve, commitTask, preparePullRequest } from './approve.js';
+import { startDashboard } from './dash.js';
 import { jsonSchema, loadConfig, presetNames, publicConfig, type Config } from './config.js';
 import { doctor, formatDoctor } from './doctor.js';
 import { CxError } from './errors.js';
@@ -71,10 +72,7 @@ async function dispatch(argv: string[]): Promise<number> {
   if (group === 'doctor') return cmdDoctor(flags);
   if (group === 'hook') return runHook(requireHook(action));
   if (group === 'install') return cmdInstall(flags);
-  if (group === 'dash' || group === 'dashboard') {
-    console.log('Dashboard is milestone M5 and is not running. See dashboard/PLAN.md.');
-    return 0;
-  }
+  if (group === 'dash' || group === 'dashboard') return cmdDash(flags);
   const cfg = loadLoaded(flags);
   if (group === 'task') return cmdTask(cfg, action, rest, flags);
   if (group === 'lane') return cmdLane(cfg, action, rest, flags);
@@ -161,6 +159,24 @@ function cmdDoctor(flags: Flags): number {
   const result = doctor(process.cwd(), str(flags, 'home'));
   console.log(bool(flags, 'json') ? JSON.stringify(result, null, 2) : formatDoctor(result.lines));
   return result.ok ? 0 : 1;
+}
+
+async function cmdDash(flags: Flags): Promise<number> {
+  if (flags.host || flags.bind) throw new CxError('cx dash listens on 127.0.0.1 only');
+  const portArg = str(flags, 'port');
+  const port = portArg === undefined ? 8377 : Number(portArg);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) throw new CxError('--port must be an integer from 0 to 65535');
+  const handle = await startDashboard({ port, cwd: process.cwd(), home: str(flags, 'home') });
+  console.log(`cx dashboard http://127.0.0.1:${handle.port}/?t=${handle.token}`);
+  console.log('Bound to 127.0.0.1. Read-only. Ctrl-C stops it.');
+  await new Promise<void>((resolve) => {
+    const stop = () => {
+      handle.close().finally(resolve);
+    };
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+  });
+  return 0;
 }
 
 function cmdInstall(flags: Flags): number {
@@ -436,6 +452,7 @@ const HELP = `cx — configurable parallel-feature harness for Claude Code
   cx commit <task> -m "message"
   cx pr <task> [--submit]
   cx ship <task> [--auto-plan] [--until <phase>]
+  cx dash [--port 8377]
   cx install [--claude-dir DIR] [--scope project|user]
   cx install --uninstall --claude-dir DIR
 

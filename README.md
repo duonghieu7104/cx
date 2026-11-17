@@ -215,7 +215,7 @@ cx pr <task> [--submit]
 cx ship <task> [--auto-plan]
 cx phase prompt <task>
 cx install [--claude-dir DIR]
-cx dash
+cx dash [--port 8377]
 ```
 
 Shared stack:
@@ -248,6 +248,31 @@ Measured on the public snapshot `8dcefcd` (17 Nov 2026), not on this repo.
 | Browser checks | not bundled here; the target repo is not required to depend on `@playwright/test` | QA login imported `@playwright/test` from the target frontend |
 | Secrets | never written into agent files or API responses; doctor only `stat`s env files; logs run through a redactor | seed and QA passwords were written into mode `644` agent files, `GET /api/lane/:n/creds-current` returned them without auth, and lane env helpers printed them |
 
+## Dashboard
+
+`cx dash` serves a read-only board on `127.0.0.1` (port 8377 unless you pass `--port`). The process prints a one-time `?t=` link. That token is stored in `~/.config/cx/dash.token` at mode `600` and then kept in an `HttpOnly; SameSite=Strict` cookie. Requests with the wrong `Host` header are rejected. There is no route for credentials, and `cx approve` is not a button.
+
+The views are the phase board, a task page (pipeline, lanes, check output, proof lightbox, gate status), the shared-stack lease with baseline versus current tags, and the build queue.
+
+Screenshots below are from a tiny Node app named pulse. `cx init --preset single-repo` and `cx task new` / `cx lane` created a real branch `feat/healthz` and worktree `.worktrees/healthz-app`. A stub stood in for the Claude CLI and wrote `/health` plus its test (labeled in the captions). `cx check` then ran that app's real `npm test`. A second task, `readme-pass`, is a second real worktree. The stack and queue shots use the `cluega` preset and a fake wrapper.
+
+| Shot | What it shows |
+|---|---|
+| [01-empty-board.png](docs/screenshots/01-empty-board.png) | Board before any task. |
+| [02-task-created.png](docs/screenshots/02-task-created.png) | `healthz` on the board at intake, with its lane. |
+| [03-lane-worktree.png](docs/screenshots/03-lane-worktree.png) | Branch `feat/healthz` and worktree `.worktrees/healthz-app`. |
+| [04-implement.png](docs/screenshots/04-implement.png) | Execute phase while the stub is writing `/health`. Stubbed agent. |
+| [05-checks-passed.png](docs/screenshots/05-checks-passed.png) | Real `npm test`: `GET /health says ok`, status `checks-green`. |
+| [06-review-go.png](docs/screenshots/06-review-go.png) | Review verdict GO. The reviewer text is from the stub. |
+| [07-qc-proof.png](docs/screenshots/07-qc-proof.png) | Proof lightbox. The image is a real browser shot of the sample `/health` page. |
+| [08-human-gate.png](docs/screenshots/08-human-gate.png) | Task sitting in the gate column. |
+| [09-approved.png](docs/screenshots/09-approved.png) | After `cx approve healthz commit` in a normal terminal. |
+| [10-two-tasks.png](docs/screenshots/10-two-tasks.png) | `readme-pass` at intake beside `healthz` at the gate. Two real worktrees. |
+| [11-stack-lease.png](docs/screenshots/11-stack-lease.png) | Cluega preset, fake wrapper. Lease held by `streamfix`, cdp drifted to `cx-streamfix-demo`. |
+| [12-build-queue.png](docs/screenshots/12-build-queue.png) | That same workspace with a check ticket running. |
+
+`git worktree list` from the sample is in [terminal-worktree.txt](docs/screenshots/terminal-worktree.txt). The check command's output is in [terminal-checks.txt](docs/screenshots/terminal-checks.txt).
+
 ## Development
 
 ```bash
@@ -255,14 +280,14 @@ npm ci
 npm test
 ```
 
-`npm test` compiles TypeScript and runs the Node test runner: config validation, the state machine, the mkdir lock, the serial queue, lease and restore against a fake `docker` and wrapper, guard hooks under `env -i`, approvals bound to HEAD, the installer, a stubbed `/ship-task` on a sample repo, and the `cluega` preset on a fake multi-repo tree.
+`npm test` compiles TypeScript and runs the Node test runner: config validation, the state machine, the mkdir lock, the serial queue, lease and restore against a fake `docker` and wrapper, guard hooks under `env -i`, approvals bound to HEAD, the installer, a stubbed `/ship-task` on a sample repo, the `cluega` preset on a fake multi-repo tree, and the dashboard API (auth, host check, read-only, no credential route, proof path checks).
 
 GitHub Actions runs the same command on Node 20 and Node 22.
 
 ## Later milestones
 
 - **M4.** `cx pr` already submits when you ask. Still open: a read-only PR watcher, and a `detect-changes` step for repos that have one.
-- **M5.** Dashboard. Read-only, `127.0.0.1` only, token file mode `600`, no credential route. See [dashboard/PLAN.md](dashboard/PLAN.md). `cx dash` only points there.
+- **M5.** Done. `cx dash` is the read-only board in the Dashboard section.
 - **M6.** Notification commands beyond stdout and `osascript`, a thermal pause in the build queue, and a real browser runner that lives in this repo rather than in the target app.
 
 ## License

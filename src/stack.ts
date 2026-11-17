@@ -239,6 +239,57 @@ export function stackStatus(cfg: Config): Record<string, unknown> {
   };
 }
 
+export function stackBoard(cfg: Config): Record<string, unknown> {
+  const status = stackStatus(cfg);
+  if (cfg.stack.mode !== 'shared') return { ...status, services: [] };
+  let baseline: Baseline | undefined;
+  const baselinePath = stackPaths(cfg).baseline;
+  if (fs.existsSync(baselinePath)) {
+    try {
+      baseline = readBaseline(cfg);
+    } catch {
+      baseline = undefined;
+    }
+  }
+  let running: ServiceSnap[] = [];
+  let dockerError = (status.docker_error as string | null) ?? null;
+  try {
+    running = captureRunning(cfg);
+  } catch (err) {
+    dockerError = err instanceof Error ? err.message : String(err);
+  }
+  const names = new Set<string>();
+  for (const name of Object.keys(baseline?.services ?? {})) names.add(name);
+  for (const snap of running) if (snap.name) names.add(snap.name);
+  const services = [...names].map((name) => {
+    const before = baseline?.services[name];
+    const current = running.find((snap) => snap.name === name);
+    const drifted = Boolean(
+      before &&
+        current &&
+        (before.image !== current.image || (before.mount || '') !== (current.mount || '')),
+    );
+    return {
+      name,
+      baseline_tag: before?.tag ?? null,
+      baseline_image: before?.image ?? null,
+      current_tag: current?.tag ?? null,
+      current_image: current?.image ?? null,
+      health: current?.health || current?.state || null,
+      drifted,
+    };
+  });
+  const drift = services
+    .filter((service) => service.drifted)
+    .map((service) => `${service.name} ${service.baseline_tag ?? 'none'} -> ${service.current_tag ?? 'none'}`);
+  return {
+    ...status,
+    docker_error: dockerError,
+    services,
+    drift: drift.length > 0 ? drift : ((status.drift as string[]) ?? []),
+  };
+}
+
 export function showBaseline(cfg: Config): Baseline {
   requireShared(cfg);
   if (!fs.existsSync(stackPaths(cfg).baseline)) throw new CxError('no baseline snapshot. Take a lease first.');
