@@ -1,0 +1,4 @@
+$ cx stack lease streamfix
+CX_LEASE_TOKEN=0443233133fb094f2f18f15d3e8da87a4ef052de92080484b99d75672ce5d5eb
+
+$ cx stack swap streamfix cdp --tag cx-streamfix-demo

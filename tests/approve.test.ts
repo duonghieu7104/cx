@@ -1,0 +1,91 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import { test } from 'node:test';
+import { loadConfig } from '../src/config.js';
+import { readState } from '../src/state.js';
+import { gitInit, runCx, tempDir } from './helpers.js';
+
+test('approvals follow HEAD and agents cannot approve', () => {
+  const dir = tempDir('cx-approve-');
+  gitInit(dir);
+  const home = tempDir('cx-approve-home-');
+  assert.equal(runCx(['init', '--preset', 'single-repo'], { cwd: dir, home }).status, 0);
+  assert.equal(runCx(['task', 'new', 'demo', '--title', 'Demo'], { cwd: dir, home }).status, 0);
+  const cfg = loadConfig({ startDir: dir, home: '' });
+  const worktree = path.resolve(dir, readState(cfg, 'demo').lanes[0].worktree);
+  fs.writeFileSync(path.join(worktree, 'CX_NOTE.txt'), 'one\n');
+  fs.writeFileSync(path.join(worktree, 'SKILL.md'), 'do not commit\n');
+  fs.writeFileSync(path.join(worktree, 'notes.md'), 'do not commit\n');
+  const agent = runCx(['approve', 'demo', 'commit'], { cwd: dir, home, env: { CLAUDECODE: '1' } });
+  assert.notEqual(agent.status, 0);
+  assert.match(agent.stderr, /human/);
+  assert.equal(runCx(['approve', 'demo', 'commit'], { cwd: dir, home }).status, 0);
+  fs.writeFileSync(path.join(worktree, 'CX_NOTE.txt'), 'two\n');
+  const stale = runCx(['commit', 'demo', '-m', 'feat: demo'], { cwd: dir, home });
+  assert.notEqual(stale.status, 0);
+  assert.match(stale.stderr, /stale/);
+  fs.writeFileSync(path.join(worktree, 'CX_NOTE.txt'), 'two\n');
+  assert.equal(runCx(['approve', 'demo', 'commit'], { cwd: dir, home }).status, 0);
+  const committed = runCx(['commit', 'demo', '-m', 'feat: demo'], { cwd: dir, home });
+  assert.equal(committed.status, 0, committed.stderr);
+  const shown = spawnSync('git', ['show', '--name-only', '--format=', 'HEAD'], { cwd: worktree, encoding: 'utf8' });
+  assert.match(shown.stdout, /CX_NOTE\.txt/);
+  assert.doesNotMatch(shown.stdout, /SKILL\.md/);
+  assert.doesNotMatch(shown.stdout, /notes\.md/);
+  const again = runCx(['commit', 'demo', '-m', 'feat: again'], { cwd: dir, home });
+  assert.notEqual(again.status, 0);
+  assert.match(again.stderr, /stale|no commit approval/);
+});
+
+test('commit refuses a protected env file and does not print it', () => {
+  const dir = tempDir('cx-env-commit-');
+  gitInit(dir);
+  const home = tempDir('cx-env-home-');
+  runCx(['init', '--preset', 'single-repo'], { cwd: dir, home });
+  runCx(['task', 'new', 'demo', '--title', 'Demo'], { cwd: dir, home });
+  const cfg = loadConfig({ startDir: dir, home: '' });
+  const worktree = path.resolve(dir, readState(cfg, 'demo').lanes[0].worktree);
+  fs.writeFileSync(path.join(worktree, 'CX_NOTE.txt'), 'ok\n');
+  fs.writeFileSync(path.join(worktree, '.env'), 'canary-env-value-9f3a\n');
+  assert.equal(runCx(['approve', 'demo', 'commit'], { cwd: dir, home }).status, 0);
+  const committed = runCx(['commit', 'demo', '-m', 'feat: demo'], { cwd: dir, home });
+  assert.notEqual(committed.status, 0);
+  assert.equal(`${committed.stdout}${committed.stderr}`.includes('canary-env-value-9f3a'), false);
+  const log = spawnSync('git', ['log', '--oneline'], { cwd: worktree, encoding: 'utf8' });
+  assert.doesNotMatch(log.stdout, /feat: demo/);
+});
+
+test('cx pr submits only after push and pr approvals', () => {
+  const dir = tempDir('cx-pr-');
+  gitInit(dir);
+  const bare = path.join(dir, 'bare.git');
+  spawnSync('git', ['init', '--bare', bare], { encoding: 'utf8' });
+  spawnSync('git', ['remote', 'add', 'origin', bare], { cwd: dir, encoding: 'utf8' });
+  const home = tempDir('cx-pr-home-');
+  runCx(['init', '--preset', 'single-repo'], { cwd: dir, home });
+  runCx(['task', 'new', 'demo', '--title', 'Demo feature'], { cwd: dir, home });
+  const cfg = loadConfig({ startDir: dir, home: '' });
+  const worktree = path.resolve(dir, readState(cfg, 'demo').lanes[0].worktree);
+  fs.mkdirSync(path.join(dir, 'docs', 'tasks', 'demo', '2-plan'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'docs', 'tasks', 'demo', '2-plan', 'PLAN.md'), 'ship the widget\n');
+  fs.writeFileSync(path.join(worktree, 'CX_NOTE.txt'), 'ship\n');
+  const early = runCx(['pr', 'demo', '--submit'], { cwd: dir, home });
+  assert.notEqual(early.status, 0);
+  assert.equal(runCx(['approve', 'demo', 'commit'], { cwd: dir, home }).status, 0);
+  assert.equal(runCx(['commit', 'demo', '-m', 'feat: demo'], { cwd: dir, home }).status, 0, 'commit');
+  assert.equal(runCx(['approve', 'demo', 'push'], { cwd: dir, home }).status, 0);
+  assert.equal(runCx(['approve', 'demo', 'pr'], { cwd: dir, home }).status, 0);
+  const ghLog = path.join(dir, 'gh.log');
+  const gh = path.join(dir, 'gh');
+  fs.writeFileSync(gh, `#!/bin/sh\nprintf '%s\\n' "$*" >> ${JSON.stringify(ghLog)}\necho https://example.test/pull/7\n`, {
+    mode: 0o755,
+  });
+  const opened = runCx(['pr', 'demo', '--submit'], { cwd: dir, home, env: { CX_GH: gh } });
+  assert.equal(opened.status, 0, opened.stderr);
+  const body = fs.readFileSync(path.join(dir, 'docs', 'tasks', 'demo', 'PR.md'), 'utf8');
+  assert.match(body, /ship the widget/);
+  assert.match(fs.readFileSync(ghLog, 'utf8'), /--base main/);
+  assert.equal(readState(cfg, 'demo').prs[0]?.url, 'https://example.test/pull/7');
+});

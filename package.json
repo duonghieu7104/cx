@@ -1,0 +1,29 @@
+{
+  "name": "cx",
+  "version": "0.1.0",
+  "description": "Configurable parallel-feature harness for Claude Code",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "cx": "./bin/cx.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/duonghieu7104/cx.git"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "cx": "node dist/src/cli.js",
+    "test": "tsc -p tsconfig.json && node --test --test-concurrency=1 dist/tests/*.test.js"
+  },
+  "dependencies": {
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

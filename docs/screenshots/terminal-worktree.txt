@@ -1,0 +1,18 @@
+$ git -C /tmp/cx-demo-pulse/.worktrees/healthz-app branch --show-current
+feat/healthz
+
+$ git -C /tmp/cx-demo-pulse worktree list
+/tmp/cx-demo-pulse                         7e9da77 [main]
+/tmp/cx-demo-pulse/.worktrees/healthz-app  7e9da77 [feat/healthz]
+
+
+$ git -C /tmp/cx-demo-pulse branch
++ feat/healthz
++ feat/readme-pass
+* main
+
+$ git worktree list
+/tmp/cx-demo-pulse                             7e9da77 [main]
+/tmp/cx-demo-pulse/.worktrees/healthz-app      7e9da77 [feat/healthz]
+/tmp/cx-demo-pulse/.worktrees/readme-pass-app  7e9da77 [feat/readme-pass]
+

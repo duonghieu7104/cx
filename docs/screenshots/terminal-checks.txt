@@ -1,0 +1,4 @@
+$ cx check healthz
+checks passed
+
+
